@@ -7,7 +7,6 @@ import sys
 
 # -- Project information -------------------------------------------------------
 project   = 'Uptane OTA Implementation Guide'
-copyright = '2025, OTA Engineering Team'
 author    = 'Luis Viveros'
 release   = '1.0.0'
 version   = '1.0'

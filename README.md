@@ -35,7 +35,7 @@ make livehtml
 ## Structure
 
 ```
-uptane-rtd/
+uptane-yocto/
 ├── .readthedocs.yaml          ← ReadTheDocs build config
 ├── docs/
 │   ├── Makefile               ← local build
