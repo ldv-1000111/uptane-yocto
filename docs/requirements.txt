@@ -1,0 +1,7 @@
+# docs/requirements.txt
+# Install with: pip install -r docs/requirements.txt
+
+sphinx>=7.2
+sphinx-rtd-theme>=2.0
+sphinx-copybutton>=0.5
+myst-parser>=2.0

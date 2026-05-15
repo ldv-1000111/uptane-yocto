@@ -1,0 +1,44 @@
+/* docs/source/_static/custom.css
+   Subtle overrides on top of sphinx_rtd_theme */
+
+/* Wider content area */
+.wy-nav-content { max-width: 980px; }
+
+/* Step header styling */
+.step-box {
+    border-left: 4px solid #2980b9;
+    background: #f0f6fb;
+    padding: 12px 18px;
+    margin: 24px 0 16px;
+    border-radius: 0 6px 6px 0;
+}
+.step-box p { margin: 0; }
+
+/* Slightly larger code blocks */
+.highlight pre { font-size: 13px; line-height: 1.6; }
+
+/* Checkpoint / callout boxes */
+.rst-content .admonition.checkpoint {
+    border-color: #27ae60;
+    background: #eafaf1;
+}
+.rst-content .admonition.checkpoint > .admonition-title {
+    background: #27ae60;
+}
+
+/* Phase badges in sidebar */
+.sidebar-badge {
+    display: inline-block;
+    font-size: 10px;
+    background: rgba(41,128,185,.15);
+    color: #2980b9;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 6px;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+/* Table improvements */
+table.docutils { font-size: 14px; }
+table.docutils thead th { background: #f0f0ec; }
