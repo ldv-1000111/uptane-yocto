@@ -4,6 +4,19 @@
 Uptane OTA Implementation Guide
 ================================
 
+.. list-table::
+   :widths: 20 80
+   :class: borderless
+
+   * - **Author**
+     - Luis Viveros
+   * - **Date**
+     - May 2026
+   * - **Repository**
+     - `github.com/ldv-1000111/uptane-yocto <https://github.com/ldv-1000111/uptane-yocto>`_
+
+----
+
 A complete, step-by-step guide to building a production-grade
 over-the-air software update system for automotive ECUs using:
 
