@@ -13,7 +13,9 @@ Host System
      - Notes
    * - **Host OS**
      - Ubuntu 22.04 LTS
-     - 24.04 also works; Fedora/Debian need package name adjustments
+     - 24.04 also works but four package names differ (see Step 1 for the
+       version-specific install blocks). Fedora/Debian need further
+       adjustments.
    * - **RAM**
      - 16 GB
      - Yocto parallel builds can consume 8 GB per job

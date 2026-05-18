@@ -1,0 +1,102 @@
+# ── Yocto build artifacts ─────────────────────────────────────────────────────
+# These live in ~/uptane-workspace/ (outside the repo) but are listed here
+# as a safety net in case someone accidentally runs bitbake inside the repo.
+
+build*/
+tmp/
+sstate-cache/
+downloads/
+cache/
+*.lock
+bitbake.lock
+pseudodone
+
+# Yocto build logs
+*.log
+*.log.do_*
+
+# Generated machine configs / local overrides
+conf/local.conf
+conf/bblayers.conf
+conf/sanity_info
+
+# WIC / image artifacts (large binaries, never commit)
+*.wic
+*.wic.gz
+*.wic.bz2
+*.ext4
+*.iso
+*.hddimg
+*.tar.bz2
+*.tar.gz
+*.tar.xz
+*.tar.zst
+*.rootfs.*
+*.manifest
+*.testdata.json
+*.qemuboot.conf
+
+# ── C++ build artifacts ───────────────────────────────────────────────────────
+ota-client/build*/
+ota-client/cmake-build-*/
+ota-client/.cache/
+compile_commands.json
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+*.a
+*.so
+*.so.*
+*.o
+*.d
+
+# ── IDE / editor files ────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.clangd/
+.clang-tidy-cache/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+dist/
+*.egg
+
+# ── Sphinx / ReadTheDocs build output ─────────────────────────────────────────
+# Source lives in docs/source/ — build output is generated, not committed
+docs/build/
+docs/source/_build/
+docs/source/.doctrees/
+
+# ── QEMU test artifacts ───────────────────────────────────────────────────────
+*.qcow2
+*.img
+/tmp/
+
+# ── Security-sensitive files — NEVER commit these ─────────────────────────────
+*.key
+*.pem
+*.p12
+*.pfx
+*_private*
+*_secret*
+uboot_env.json
+counters.json
+sealed_key.*
+
+# ── CI / runner state ─────────────────────────────────────────────────────────
+.env
+.env.*
+*.pid

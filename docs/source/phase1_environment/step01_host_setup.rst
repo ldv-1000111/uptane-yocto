@@ -7,9 +7,13 @@ and QEMU testing.
 1.1 Install Ubuntu packages
 ----------------------------
 
+Several Yocto host-tool packages were renamed between Ubuntu 22.04 and 24.04.
+Use the block that matches your host.
+
+**Ubuntu 22.04 LTS (Jammy):**
+
 .. code-block:: bash
 
-   # Yocto Scarthgap required packages (Ubuntu 22.04 / 24.04)
    sudo apt-get update
    sudo apt-get install -y \
      gawk wget git diffstat unzip texinfo gcc build-essential \
@@ -22,39 +26,89 @@ and QEMU testing.
      nlohmann-json3-dev pkg-config \
      can-utils linux-modules-extra-$(uname -r)
 
-   # Python deps for mock backend
-   pip3 install cryptography requests tuf
-
-.. note::
-
-   On Ubuntu 22.04 the ``libegl1-mesa`` package may be named
-   ``libegl-mesa0``. Run ``apt-cache search libegl`` to find the right name.
-
-1.2 Clone Yocto Scarthgap and required layers
-----------------------------------------------
+**Ubuntu 24.04 LTS (Noble) — package names differ in four places:**
 
 .. code-block:: bash
 
-   mkdir -p ~/uptane-workspace && cd ~/uptane-workspace
+   sudo apt-get update
+   sudo apt-get install -y \
+     gawk wget git diffstat unzip texinfo gcc build-essential \
+     chrpath socat cpio python3 python3-pip python3-pexpect \
+     xz-utils debianutils iputils-ping python3-git python3-jinja2 \
+     libegl-dev libsdl2-dev python3-pylint xterm python3-subunit \
+     mesa-common-dev zstd liblz4-tool file curl \
+     qemu-system-x86 qemu-system-arm \
+     cmake ninja-build libssl-dev libcurl4-openssl-dev \
+     nlohmann-json3-dev pkg-config \
+     can-utils linux-modules-extra-$(uname -r)
 
-   # Poky (Yocto reference distro) — Scarthgap branch
-   git clone -b scarthgap git://git.yoctoproject.org/poky
+.. note::
 
-   # meta-openembedded — provides nlohmann-json, can-utils, etc.
-   git clone -b scarthgap \
-     https://github.com/openembedded/meta-openembedded
+   The four packages that changed between 22.04 and 24.04:
 
-   # meta-swupdate — SWUpdate A/B atomic update support
-   git clone -b scarthgap \
-     https://github.com/sbabic/meta-swupdate
+   .. list-table::
+      :header-rows: 1
+      :widths: 40 40 20
 
-   # Our custom layer — copy from the project tarball
-   tar xzf ~/uptane-ota-project.tar.gz
-   cp -r uptane-ota-project/meta-uptane-ota .
+      * - Ubuntu 22.04 name
+        - Ubuntu 24.04 name
+        - Why
+      * - ``libegl1-mesa``
+        - ``libegl-dev``
+        - Mesa split into dev/runtime packages
+      * - ``libsdl1.2-dev``
+        - ``libsdl2-dev``
+        - SDL 1.2 removed; Yocto now uses SDL2
+      * - ``pylint``
+        - ``python3-pylint``
+        - Renamed to follow Python 3 conventions
+      * - *(implicit via mesa)*
+        - *(no change)*
+        - ``mesa-common-dev`` still works on both
+
+   If you hit a missing package run ``apt-cache search <name>`` to find the
+   current equivalent.
+
+**Python deps for the mock backend (both versions):**
+
+.. code-block:: bash
+
+   pip3 install cryptography requests tuf
+
+1.2 Bootstrap the Yocto workspace
+----------------------------------
+
+The ``setup-yocto-workspace.sh`` script handles all clones, the
+``meta-uptane-ota`` symlink, and both ``bblayers.conf`` / ``local.conf``
+files in one step. Run it once on any new build machine:
+
+.. code-block:: bash
+
+   git clone https://github.com/your-org/uptane-yocto
+   cd uptane-yocto
+   bash scripts/setup-yocto-workspace.sh
+   # Default workspace: ~/uptane-workspace
+   # Custom location:   bash scripts/setup-yocto-workspace.sh /path/to/ws
 
    # Verify
    ls ~/uptane-workspace/
-   # → meta-openembedded  meta-swupdate  meta-uptane-ota  poky
+   # → build-arm64  build-x86  downloads  meta-openembedded
+   #   meta-swupdate  meta-uptane-ota  poky  sstate-cache
+
+   ls -la ~/uptane-workspace/meta-uptane-ota
+   # → meta-uptane-ota -> /home/user/uptane-ota/meta-uptane-ota  ← symlink
+
+The script is idempotent — running it again on an existing workspace pulls
+the latest commits from each external layer and refreshes the symlink if
+needed. See ``scripts/setup-yocto-workspace.sh`` for the full source.
+
+.. note::
+
+   The Yocto workspace (``~/uptane-workspace/``) lives entirely **outside**
+   the git repository. The ``build*/``, ``sstate-cache/``, ``downloads/``,
+   and ``tmp/`` directories are generated artifacts and are excluded from git
+   by ``.gitignore``. Only ``meta-uptane-ota/`` (via symlink), ``ota-client/``,
+   and ``scripts/`` come from the repo.
 
 1.3 Set up virtual CAN interface (vcan0)
 -----------------------------------------
