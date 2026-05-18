@@ -42,3 +42,13 @@
 /* Table improvements */
 table.docutils { font-size: 14px; }
 table.docutils thead th { background: #f0f0ec; }
+
+/* Borderless metadata table (used on introduction page) */
+table.borderless,
+table.borderless td,
+table.borderless th {
+    border: none !important;
+    background: transparent !important;
+    padding: 3px 12px 3px 0;
+}
+table.borderless tr:hover td { background: transparent !important; }

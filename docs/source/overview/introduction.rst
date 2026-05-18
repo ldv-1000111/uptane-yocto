@@ -1,6 +1,19 @@
 Introduction
 ============
 
+.. list-table::
+   :widths: 20 80
+   :class: borderless
+
+   * - **Author**
+     - Luis Viveros
+   * - **Date**
+     - May 2026
+   * - **Repository**
+     - `github.com/ldv-1000111/uptane-yocto <https://github.com/ldv-1000111/uptane-yocto>`_
+
+----
+
 Modern vehicles contain over 100 Electronic Control Units (ECUs), all of
 which require periodic software updates throughout the vehicle lifecycle.
 Naïve OTA approaches — sending unsigned or weakly-authenticated update
