@@ -1,0 +1,18 @@
+part /boot --source bootimg-partition \
+     --ondisk vda --fstype=vfat \
+     --label boot --active --align 1024 --fixed-size 100M
+
+part / --source rootfs \
+     --ondisk vda --fstype=ext4 \
+     --label rootfs-a --align 1024 --fixed-size 512M
+
+part / --source empty \
+     --ondisk vda --fstype=ext4 \
+     --label rootfs-b --align 1024 --fixed-size 512M
+
+part /data --source empty \
+     --ondisk vda --fstype=ext4 \
+     --label data --align 1024 --fixed-size 2048M
+
+bootloader --ptable gpt --timeout=3 \
+    --append="root=/dev/vda2 rw console=ttyAMA0,115200 rootwait"

@@ -1,0 +1,23 @@
+# /dev/sda1 — EFI boot partition with GRUB
+part /boot --source bootimg-efi \
+     --sourceparams="loader=grub-efi" \
+     --ondisk sda --label boot \
+     --active --align 1024 --fixed-size 100M
+
+# /dev/sda2 — Slot A, filled with the built rootfs
+part / --source rootfs \
+     --ondisk sda --fstype=ext4 \
+     --label rootfs-a --align 1024 --fixed-size 512M
+
+# /dev/sda3 — Slot B, empty — SWUpdate target for OTA updates
+part / --source empty \
+     --ondisk sda --fstype=ext4 \
+     --label rootfs-b --align 1024 --fixed-size 512M
+
+# /dev/sda4 — Persistent data, survives rootfs swaps
+part /data --source empty \
+     --ondisk sda --fstype=ext4 \
+     --label data --align 1024 --fixed-size 2048M
+
+bootloader --ptable gpt --timeout=3 \
+    --append="root=/dev/sda2 rw console=ttyS0,115200 rootwait"
