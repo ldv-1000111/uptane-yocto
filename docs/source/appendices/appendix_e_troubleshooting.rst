@@ -4,7 +4,24 @@ Appendix E — Troubleshooting
 Yocto Build Issues
 ------------------
 
-**ERROR: No recipes available for: uptane-client**
+**E: Unable to locate package libegl1-mesa** (or libsdl1.2-dev)
+
+You are on Ubuntu 24.04 where several Yocto host packages were renamed.
+Use the 24.04-specific install block in
+:doc:`../phase1_environment/step01_host_setup` — do not use the 22.04 block.
+
+**E: Unable to locate package pylint**
+
+Run ``apt-cache search pylint`` first — on most Ubuntu 24.04 systems it is
+available as plain ``pylint``. If it does not appear in the search results,
+install it via pipx as a fallback::
+
+   sudo apt-get install -y pipx
+   pipx install pylint
+   pipx ensurepath
+   source ~/.bashrc
+
+
 
 The ``meta-uptane-ota`` layer is not in the layer search path::
 

@@ -26,7 +26,7 @@ Use the block that matches your host.
      nlohmann-json3-dev pkg-config \
      can-utils linux-modules-extra-$(uname -r)
 
-**Ubuntu 24.04 LTS (Noble) — package names differ in four places:**
+**Ubuntu 24.04 LTS (Noble) — package names differ in three places:**
 
 .. code-block:: bash
 
@@ -35,7 +35,7 @@ Use the block that matches your host.
      gawk wget git diffstat unzip texinfo gcc build-essential \
      chrpath socat cpio python3 python3-pip python3-pexpect \
      xz-utils debianutils iputils-ping python3-git python3-jinja2 \
-     libegl-dev libsdl2-dev python3-pylint xterm python3-subunit \
+     libegl-dev libsdl2-dev pylint xterm python3-subunit \
      mesa-common-dev zstd liblz4-tool file curl \
      qemu-system-x86 qemu-system-arm \
      cmake ninja-build libssl-dev libcurl4-openssl-dev \
@@ -44,14 +44,14 @@ Use the block that matches your host.
 
 .. note::
 
-   The four packages that changed between 22.04 and 24.04:
+   The packages that changed between 22.04 and 24.04:
 
    .. list-table::
       :header-rows: 1
       :widths: 40 40 20
 
-      * - Ubuntu 22.04 name
-        - Ubuntu 24.04 name
+      * - Ubuntu 22.04
+        - Ubuntu 24.04
         - Why
       * - ``libegl1-mesa``
         - ``libegl-dev``
@@ -59,12 +59,11 @@ Use the block that matches your host.
       * - ``libsdl1.2-dev``
         - ``libsdl2-dev``
         - SDL 1.2 removed; Yocto now uses SDL2
-      * - ``pylint``
-        - ``python3-pylint``
-        - Renamed to follow Python 3 conventions
-      * - *(implicit via mesa)*
-        - *(no change)*
-        - ``mesa-common-dev`` still works on both
+      * - ``pylint`` *(same name, different package)*
+        - ``pylint``
+        - Still ``pylint`` in apt but backed by a different binary.
+          If ``apt-cache search pylint`` shows nothing, install via
+          ``pipx install pylint`` as a fallback.
 
    If you hit a missing package run ``apt-cache search <name>`` to find the
    current equivalent.

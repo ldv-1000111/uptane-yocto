@@ -19,7 +19,7 @@ YOCTO_BRANCH="scarthgap"
 
 # External layer repos
 declare -A LAYERS=(
-    ["poky"]="git://git.yoctoproject.org/poky"
+    ["poky"]="https://git.yoctoproject.org/poky"
     ["meta-openembedded"]="https://github.com/openembedded/meta-openembedded"
     ["meta-swupdate"]="https://github.com/sbabic/meta-swupdate"
 )
