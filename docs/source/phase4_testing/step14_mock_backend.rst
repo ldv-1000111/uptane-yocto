@@ -10,7 +10,7 @@ firmware blobs from a local directory.
 
 .. code-block:: bash
 
-   pip3 install cryptography
+   sudo apt-get install -y python3-cryptography python3-requests
 
    python3 scripts/qemu/mock-backend.py \
      --port 8080 \

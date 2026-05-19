@@ -72,7 +72,11 @@ Use the block that matches your host.
 
 .. code-block:: bash
 
-   pip3 install cryptography requests tuf
+   # Install via apt where available (avoids PEP 668 restriction on 24.04)
+   sudo apt-get install -y python3-cryptography python3-requests
+
+   # tuf is not available in apt and is not actually imported by mock-backend.py
+   # — no further action needed
 
 1.2 Bootstrap the Yocto workspace
 ----------------------------------

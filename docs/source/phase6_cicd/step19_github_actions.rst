@@ -78,7 +78,7 @@ runtime requirements:
    # .github/workflows/qemu-smoke.yml — key steps
    - name: Start mock backend
      run: |
-       pip3 install cryptography
+       sudo apt-get install -y python3-cryptography python3-requests
        python3 scripts/qemu/mock-backend.py \
          --key-dir /tmp/test-keys \
          --firmware-dir /tmp/test-fw --port 8080 &
