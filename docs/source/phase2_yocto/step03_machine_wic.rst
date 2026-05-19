@@ -1,91 +1,159 @@
-Step 3 — Machine Configs and A/B WIC Layout
-============================================
+Step 3 — Create the C++ OTA Client Directory Tree
+==================================================
 
-3.1 Machine configuration files
----------------------------------
+Now we build the ``ota-client/`` source tree from scratch inside the
+repository. Every file is created with its full content so you understand
+exactly what each module does and why it is structured this way.
 
-Each target machine extends the upstream QEMU config and adds OTA-specific
-parameters. The key additions are the WIC kickstart file and QB_ variables
-that control how ``runqemu`` launches QEMU.
+3.1 Create the directory skeleton
+-----------------------------------
 
-**qemux86-64-ota.conf** (key settings):
+.. code-block:: bash
 
-.. code-block:: bitbake
+   cd ~/data/1_devel/10_claudeCode/04_uptane/uptane-yocto
 
-   require conf/machine/qemux86-64.conf   # inherit stock QEMU x86
+   # CMake project root
+   mkdir -p ota-client
 
-   WKS_FILE      = "ab-image-x86.wks"
-   IMAGE_FSTYPES = "wic wic.gz ext4"
+   # Public headers — one directory per module
+   mkdir -p ota-client/include/uptane
+   mkdir -p ota-client/include/transport
+   mkdir -p ota-client/include/partition
+   mkdir -p ota-client/include/uds
 
-   QB_SYSTEM_NAME    = "qemu-system-x86_64"
-   QB_MEM            = "-m 512"
-   QB_NETWORK_DEVICE = "virtio-net-pci"
+   # Implementations
+   mkdir -p ota-client/src/uptane
+   mkdir -p ota-client/src/transport
+   mkdir -p ota-client/src/partition
+   mkdir -p ota-client/src/uds
 
-   # Virtual CAN bus (kvaser_pci emulation, QEMU 7.0+)
-   QB_OPT_APPEND:append = " -object can-bus,id=canbus0 \
-       -device kvaser_pci,canbus=canbus0 "
+   # GoogleTest suites
+   mkdir -p ota-client/tests
 
-**qemuarm64-ota.conf** follows the same pattern, using
-``qemu-system-aarch64``, ``-machine virt -cpu cortex-a57``, and
-``virtio-net-device`` for the network adapter.
+   # Config and systemd unit
+   mkdir -p ota-client/config
+   mkdir -p ota-client/init
 
-.. warning::
+   find ota-client -type d
 
-   The ``kvaser_pci`` CAN device requires QEMU 7.0+. Check with::
+**Why separate include/ and src/?** The ``include/`` tree contains only
+``.h`` headers with declarations. The ``src/`` tree contains ``.cpp``
+files with implementations. The Yocto recipe and any external consumer
+only need the headers — the implementation details stay private. This
+is the standard CMake layout for a library.
 
-      qemu-system-x86_64 -device help | grep kvaser
+3.2 CMakeLists.txt — the build system root
+-------------------------------------------
 
-   If absent, remove the CAN lines and test UDS separately on the host
-   with ``vcan0``.
+The root ``CMakeLists.txt`` has four jobs: find dependencies, build a
+static library from all module sources, build the ``uptane-client``
+executable that links against it, and optionally build the test binary.
 
-3.2 A/B WIC partition layout
-------------------------------
+.. code-block:: bash
 
-The WIC kickstart file (``wic/ab-image-x86.wks``) defines the physical disk:
+   cat > ota-client/CMakeLists.txt << 'EOF'
+   cmake_minimum_required(VERSION 3.20)
+   project(uptane-client VERSION 1.0.0 LANGUAGES CXX)
 
-.. list-table::
-   :header-rows: 1
-   :widths: 15 12 15 58
+   set(CMAKE_CXX_STANDARD 17)
+   set(CMAKE_CXX_STANDARD_REQUIRED ON)
+   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-   * - Partition
-     - Label
-     - Size
-     - Purpose
-   * - ``/dev/vda1``
-     - ``boot``
-     - 100 MiB
-     - GRUB / U-Boot bootloader + kernel
-   * - ``/dev/vda2``
-     - ``rootfs-a``
-     - 512 MiB
-     - Root filesystem — Slot A (starts active)
-   * - ``/dev/vda3``
-     - ``rootfs-b``
-     - 512 MiB
-     - Root filesystem — Slot B (staging target)
-   * - ``/dev/vda4``
-     - ``data``
-     - 2048 MiB
-     - Persistent: OTA keys, staging dir, metadata cache, U-Boot env mock
+   # ── Build options ────────────────────────────────────────────────────────
+   option(ENABLE_TESTS "Build GoogleTest unit tests" ON)
+   option(ENABLE_UDS   "Build UDS/CAN secondary ECU flasher" ON)
 
-The ``/data`` partition is critical — it survives rootfs swaps. Uptane keys,
-downloaded firmware, and the U-Boot env JSON file all live here.
+   # ── Dependencies ─────────────────────────────────────────────────────────
+   find_package(OpenSSL REQUIRED)
+   find_package(CURL    REQUIRED)
 
-.. code-block:: text
+   # nlohmann/json: try system package first, fetch from GitHub if absent
+   find_package(nlohmann_json 3.10 QUIET)
+   if(NOT nlohmann_json_FOUND)
+       include(FetchContent)
+       FetchContent_Declare(nlohmann_json
+           URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
+       FetchContent_MakeAvailable(nlohmann_json)
+   endif()
 
-   # wic/ab-image-x86.wks
-   part /boot --source bootimg-efi \
-        --sourceparams="loader=grub-efi" \
-        --ondisk sda --label boot --active --fixed-size 100M
+   # ── Static library — all four modules ────────────────────────────────────
+   set(LIB_SOURCES
+       src/uptane/metadata.cpp
+       src/uptane/verifier.cpp
+       src/transport/downloader.cpp
+       src/transport/staging.cpp
+       src/partition/ab_manager.cpp
+       src/partition/uboot_env.cpp
+   )
 
-   part / --source rootfs --ondisk sda --fstype=ext4 \
-        --label rootfs-a --fixed-size 512M
+   if(ENABLE_UDS)
+       list(APPEND LIB_SOURCES
+           src/uds/isotp.cpp
+           src/uds/uds_flasher.cpp)
+   endif()
 
-   part / --source empty --ondisk sda --fstype=ext4 \
-        --label rootfs-b --fixed-size 512M
+   add_library(uptane_lib STATIC ${LIB_SOURCES})
 
-   part /data --source empty --ondisk sda --fstype=ext4 \
-        --label data --fixed-size 2048M
+   target_include_directories(uptane_lib PUBLIC
+       ${CMAKE_SOURCE_DIR}/include)
 
-   bootloader --ptable gpt --timeout=3 \
-       --append="root=/dev/sda2 rw console=ttyS0,115200 rootwait"
+   target_link_libraries(uptane_lib PUBLIC
+       OpenSSL::SSL OpenSSL::Crypto CURL::libcurl
+       nlohmann_json::nlohmann_json)
+
+   if(ENABLE_UDS)
+       target_compile_definitions(uptane_lib PUBLIC ENABLE_UDS=1)
+       find_library(SOCKETCAN_LIB socketcan)
+       if(SOCKETCAN_LIB)
+           target_link_libraries(uptane_lib PUBLIC ${SOCKETCAN_LIB})
+       endif()
+   endif()
+
+   # ── Executable ────────────────────────────────────────────────────────────
+   add_executable(uptane-client src/main.cpp)
+   target_link_libraries(uptane-client PRIVATE uptane_lib)
+
+   install(TARGETS uptane-client DESTINATION bin)
+   install(FILES config/client.toml.example
+           DESTINATION etc/uptane RENAME client.toml)
+   install(FILES init/uptane-client.service
+           DESTINATION lib/systemd/system)
+
+   # ── Tests ─────────────────────────────────────────────────────────────────
+   if(ENABLE_TESTS)
+       enable_testing()
+       find_package(GTest QUIET)
+       if(NOT GTest_FOUND)
+           include(FetchContent)
+           FetchContent_Declare(googletest
+               URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz)
+           FetchContent_MakeAvailable(googletest)
+       endif()
+       add_subdirectory(tests)
+   endif()
+   EOF
+
+**Why a static library?** Linking ``uptane_lib`` statically into the
+executable means the final binary has no runtime library dependencies
+beyond the system ones (libcurl, libssl). This simplifies deployment
+onto the target rootfs — no ``LD_LIBRARY_PATH`` management needed.
+
+3.3 Build it locally to verify CMake is correct
+-------------------------------------------------
+
+Before writing any C++ source, confirm the CMake scaffolding works:
+
+.. code-block:: bash
+
+   cd ota-client
+   mkdir build && cd build
+   cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=ON -DENABLE_UDS=ON
+   # Should end with: -- Build files have been written to: .../build
+   cd ../..
+
+.. admonition:: Checkpoint
+   :class: checkpoint
+
+   * ``find ota-client -type d | wc -l`` returns **11**
+   * ``cmake ..`` in ``ota-client/build/`` exits without errors
+   * ``cat ota-client/CMakeLists.txt | grep project`` shows ``uptane-client``

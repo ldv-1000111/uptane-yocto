@@ -1,84 +1,197 @@
-Step 9 — Downloader and Staging
-=================================
+Step 9 — Write the A/B Partition Manager
+==========================================
 
-9.1 CURL streaming download with simultaneous hashing
-------------------------------------------------------
+9.1 src/partition/uboot_env.cpp
+---------------------------------
 
-The downloader uses a CURL write callback that simultaneously streams bytes
-to disk *and* feeds them into OpenSSL EVP digest contexts. This computes
-the firmware hash in a single pass without a second read:
+The U-Boot env wrapper detects the ``UPTANE_MOCK_UBOOT`` environment
+variable at construction. When set, all reads and writes go to a JSON
+file on disk instead of calling ``fw_printenv``/``fw_setenv``. This
+lets the full A/B slot-switching flow be tested in QEMU without a real
+U-Boot env partition.
 
-.. code-block:: cpp
+.. code-block:: bash
 
-   struct WriteCtx {
-       std::ofstream*   file;
-       EVP_MD_CTX*      ctx256;   // SHA-256 running hash
-       EVP_MD_CTX*      ctx512;   // SHA-512 running hash
-       uint64_t         bytes_written{0};
-       ProgressCallback on_progress;
-   };
+   cat > ota-client/src/partition/uboot_env.cpp << 'EOF'
+   #include "partition/uboot_env.h"
+   #include <cstdlib>
+   #include <cstdio>
+   #include <array>
+   #include <fstream>
+   #include <nlohmann/json.hpp>
+   #include <iostream>
 
-   static size_t curl_write_cb(char* ptr, size_t size,
-                               size_t nmemb, void* userdata)
-   {
-       auto* ctx = reinterpret_cast<WriteCtx*>(userdata);
-       size_t n = size * nmemb;
-       ctx->file->write(ptr, static_cast<std::streamsize>(n)); // → disk
-       EVP_DigestUpdate(ctx->ctx256, ptr, n);                  // → SHA-256
-       EVP_DigestUpdate(ctx->ctx512, ptr, n);                  // → SHA-512
-       ctx->bytes_written += n;
-       if (ctx->on_progress)
-           ctx->on_progress(ctx->bytes_written, ctx->total_expected);
-       return n;
+   namespace partition {
+
+   UBootEnv::UBootEnv() {
+       const char* mock = std::getenv("UPTANE_MOCK_UBOOT");
+       if (mock) {
+           mock_mode_ = true;
+           mock_path_ = mock;
+           std::cout << "[UBootEnv] Mock mode: " << mock_path_ << "\n";
+       }
    }
 
-Partial resume uses CURL's ``CURLOPT_RESUME_FROM_LARGE`` — if the
-destination file already exists, the download continues from the end of
-the existing bytes.
+   std::map<std::string, std::string> UBootEnv::load_mock() const {
+       std::ifstream f(mock_path_);
+       if (!f) return {};
+       try {
+           return nlohmann::json::parse(f)
+               .get<std::map<std::string, std::string>>();
+       } catch (...) { return {}; }
+   }
 
-9.2 Hash verification
-----------------------
+   bool UBootEnv::save_mock(
+       const std::map<std::string, std::string>& env) {
+       std::ofstream f(mock_path_);
+       if (!f) return false;
+       f << nlohmann::json(env).dump(2);
+       return true;
+   }
 
-After the transfer completes, the finalised digests are compared against
-hashes from the verified Uptane metadata. A mismatch deletes the corrupt
-file immediately:
-
-.. code-block:: cpp
-
-   result.sha256_hex = bytes_to_hex(digest256, len256);
-
-   if (!expected_sha256.empty() && result.sha256_hex != expected_sha256) {
-       result.error = "SHA-256 mismatch: got " + result.sha256_hex;
-       std::filesystem::remove(dest_path);   // delete corrupt file
+   std::optional<std::string> UBootEnv::get(
+       const std::string& key) const {
+       if (mock_mode_) {
+           auto env = load_mock();
+           auto it  = env.find(key);
+           return (it == env.end())
+               ? std::nullopt : std::optional<std::string>(it->second);
+       }
+       std::string cmd = "fw_printenv -n " + key + " 2>/dev/null";
+       std::array<char, 256> buf{};
+       std::string result;
+       FILE* pipe = popen(cmd.c_str(), "r");
+       if (!pipe) return std::nullopt;
+       while (fgets(buf.data(), buf.size(), pipe)) result += buf.data();
+       pclose(pipe);
+       if (result.empty()) return std::nullopt;
+       if (!result.empty() && result.back() == '\n') result.pop_back();
        return result;
    }
 
-9.3 Staging state machine
---------------------------
+   bool UBootEnv::set(const std::string& key, const std::string& value) {
+       if (mock_mode_) {
+           auto env = load_mock(); env[key] = value;
+           return save_mock(env);
+       }
+       return std::system(("fw_setenv " + key + " " + value).c_str()) == 0;
+   }
 
-The ``StagingManager`` persists state to
-``/data/uptane/staging/<target-name>/state``. On power loss mid-download the
-state is preserved and the download can resume from the partial file.
+   bool UBootEnv::del(const std::string& key) {
+       if (mock_mode_) {
+           auto env = load_mock(); env.erase(key);
+           return save_mock(env);
+       }
+       return std::system(("fw_setenv " + key).c_str()) == 0;
+   }
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 40 40
+   std::map<std::string, std::string> UBootEnv::read_all() const {
+       if (mock_mode_) return load_mock();
+       std::map<std::string, std::string> result;
+       FILE* pipe = popen("fw_printenv 2>/dev/null", "r");
+       if (!pipe) return result;
+       std::array<char, 512> buf{};
+       while (fgets(buf.data(), buf.size(), pipe)) {
+           std::string line(buf.data());
+           if (!line.empty() && line.back() == '\n') line.pop_back();
+           auto eq = line.find('=');
+           if (eq != std::string::npos)
+               result[line.substr(0, eq)] = line.substr(eq + 1);
+       }
+       pclose(pipe);
+       return result;
+   }
 
-   * - State
-     - Meaning
-     - Next valid states
-   * - ``downloading``
-     - Transfer in progress
-     - ``downloaded``, ``failed``
-   * - ``downloaded``
-     - File on disk, hash verified
-     - ``installing``
-   * - ``installing``
-     - SWUpdate or UDS flash running
-     - ``done``, ``failed``
-   * - ``done``
-     - Successfully flashed, eligible for pruning
-     - —
-   * - ``failed``
-     - Error stored in state file second line
-     - —
+   } // namespace partition
+   EOF
+
+9.2 src/partition/ab_manager.cpp
+----------------------------------
+
+.. code-block:: bash
+
+   cat > ota-client/src/partition/ab_manager.cpp << 'EOF'
+   #include "partition/ab_manager.h"
+   #include "partition/uboot_env.h"
+   #include <iostream>
+   #include <stdexcept>
+
+   namespace partition {
+
+   std::string slot_str(Slot s)   { return s == Slot::A ? "a" : "b"; }
+   Slot        slot_other(Slot s) { return s == Slot::A ? Slot::B : Slot::A; }
+
+   ABManager::ABManager(const PartitionConfig& cfg) : cfg_(cfg) {}
+
+   Slot ABManager::active_slot() const {
+       UBootEnv env;
+       auto val = env.get(ENV_BOOT_SLOT);
+       return (!val || *val == "a") ? Slot::A : Slot::B;
+   }
+   Slot        ABManager::inactive_slot()    const { return slot_other(active_slot()); }
+   std::string ABManager::active_device()    const {
+       return active_slot() == Slot::A ? cfg_.slot_a_device : cfg_.slot_b_device; }
+   std::string ABManager::inactive_device()  const {
+       return inactive_slot() == Slot::A ? cfg_.slot_a_device : cfg_.slot_b_device; }
+
+   bool ABManager::flash_inactive(const std::filesystem::path& swu_path,
+                                    const ProgressCallback& on_progress) {
+       if (on_progress) on_progress("Flashing " + inactive_device(), 0);
+
+       // Build SWUpdate command — %s is replaced with the .swu path
+       std::string cmd = cfg_.swupdate_cmd;
+       auto pos = cmd.find("%s");
+       if (pos != std::string::npos) cmd.replace(pos, 2, swu_path.string());
+       else cmd += " " + swu_path.string();
+
+       std::cout << "[ABManager] " << cmd << "\n";
+       int rc = std::system(cmd.c_str());
+       if (rc != 0) return false;
+       if (on_progress) on_progress("Flash complete", 100);
+       return true;
+   }
+
+   bool ABManager::set_pending_update() {
+       UBootEnv env;
+       Slot next = inactive_slot();
+       bool ok = true;
+       ok &= env.set(ENV_BOOT_SLOT,     slot_str(next));
+       ok &= env.set(ENV_UPGRADE_AVAIL, "1");
+       ok &= env.set(ENV_BOOT_ATTEMPTS, "0");
+       ok &= env.set(ENV_MAX_ATTEMPTS,
+                     std::to_string(cfg_.max_boot_attempts));
+       return ok;
+   }
+
+   bool ABManager::confirm_update() {
+       UBootEnv env;
+       bool ok = true;
+       ok &= env.set(ENV_UPGRADE_AVAIL, "0");
+       ok &= env.set(ENV_BOOT_ATTEMPTS, "0");
+       return ok;
+   }
+
+   bool ABManager::rollback() {
+       UBootEnv env;
+       bool ok = true;
+       ok &= env.set(ENV_BOOT_SLOT,     slot_str(inactive_slot()));
+       ok &= env.set(ENV_UPGRADE_AVAIL, "0");
+       ok &= env.set(ENV_BOOT_ATTEMPTS, "0");
+       return ok;
+   }
+
+   void ABManager::dump_env() const {
+       UBootEnv env;
+       for (auto& [k, v] : env.read_all())
+           std::cout << k << "=" << v << "\n";
+   }
+
+   } // namespace partition
+   EOF
+
+.. admonition:: Checkpoint
+   :class: checkpoint
+
+   * ``make -j$(nproc)`` compiles the partition module cleanly
+   * ``UPTANE_MOCK_UBOOT=/tmp/test.json ./uptane-client --dump-env``
+     reads and writes the JSON file (once main.cpp is written)

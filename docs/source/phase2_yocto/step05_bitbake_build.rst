@@ -1,59 +1,73 @@
-Step 5 — BitBake Build
-=======================
+Step 5 — Bootstrap the Yocto Workspace and Build
+=================================================
 
-5.1 BitBake recipe for the C++ client
----------------------------------------
+With the Yocto layer complete and the C++ headers written, we now
+initialise the build environment and run the first BitBake build.
 
-``recipes-ota/uptane-client/uptane-client_1.0.bb`` integrates the CMake
-project into Yocto's cross-compilation toolchain:
+5.1 Confirm the layer is reachable via symlink
+------------------------------------------------
 
-.. code-block:: bitbake
+.. code-block:: bash
 
-   SUMMARY = "Uptane OTA client — C++17 implementation"
-   LICENSE = "Apache-2.0"
+   ls ~/uptane-workspace/meta-uptane-ota/conf/
+   # → layer.conf  machine/
 
-   SRC_URI = "file://ota-client"
-   S = "${WORKDIR}/ota-client"
+   # If this returns "No such file or directory", the workspace symlink
+   # is broken. Re-run the setup script from the repo root:
+   cd ~/data/1_devel/10_claudeCode/04_uptane/uptane-yocto
+   bash scripts/setup-yocto-workspace.sh
 
-   inherit cmake
+5.2 Initialise the x86-64 build directory
+-------------------------------------------
 
-   DEPENDS = " curl openssl nlohmann-json libsocketcan "
-
-   EXTRA_OECMAKE = " \
-       -DCMAKE_BUILD_TYPE=Release \
-       -DENABLE_TESTS=OFF         \
-       -DTARGET_ARCH=${TARGET_ARCH} \
-   "
-
-   do_install:append() {
-       install -d ${D}${sysconfdir}/uptane
-       install -m 0644 ${S}/config/client.toml.example \
-           ${D}${sysconfdir}/uptane/client.toml
-       install -d ${D}${systemd_unitdir}/system
-       install -m 0644 ${S}/init/uptane-client.service \
-           ${D}${systemd_unitdir}/system/uptane-client.service
-   }
-
-The ``inherit cmake`` class handles ``do_configure`` (runs ``cmake``),
-``do_compile`` (runs ``make``), and ``do_install`` automatically.
-``EXTRA_OECMAKE`` passes cross-compilation flags through to CMake.
-
-5.2 Configure and run the builds
-----------------------------------
-
-**x86-64 build:**
+``oe-init-build-env`` must be *sourced*, not executed, because it
+modifies your current shell's PATH and environment variables. It
+creates the ``build-x86/`` directory and a minimal ``conf/`` skeleton
+if they do not already exist.
 
 .. code-block:: bash
 
    cd ~/uptane-workspace/poky
    source oe-init-build-env ../build-x86
 
-   bitbake-layers add-layer ../../meta-openembedded/meta-oe
-   bitbake-layers add-layer ../../meta-openembedded/meta-python
-   bitbake-layers add-layer ../../meta-swupdate
-   bitbake-layers add-layer ../../meta-uptane-ota
+   # You are now inside ~/uptane-workspace/build-x86/
+   # The prompt usually changes to reflect this.
 
+5.3 Verify layers are registered
+----------------------------------
+
+.. code-block:: bash
+
+   bitbake-layers show-layers
+
+Expected output (priority column is what matters):
+
+.. code-block:: text
+
+   layer                 path                                    priority
+   ─────────────────────────────────────────────────────────────────────
+   meta                  .../poky/meta                                  5
+   meta-poky             .../poky/meta-poky                             5
+   meta-oe               .../meta-openembedded/meta-oe                  5
+   meta-python           .../meta-openembedded/meta-python              5
+   meta-swupdate         .../meta-swupdate                              9
+   meta-uptane-ota       .../meta-uptane-ota                           10
+
+If ``meta-uptane-ota`` is missing, the ``bblayers.conf`` was not written
+by the setup script. Add it manually:
+
+.. code-block:: bash
+
+   bitbake-layers add-layer ~/uptane-workspace/meta-uptane-ota
+
+5.4 Set local.conf options
+----------------------------
+
+.. code-block:: bash
+
+   # Append to conf/local.conf (only if not already present)
    cat >> conf/local.conf << 'EOF'
+
    MACHINE = "qemux86-64-ota"
    DISTRO_FEATURES:append = " systemd"
    VIRTUAL-RUNTIME_init_manager = "systemd"
@@ -61,16 +75,40 @@ The ``inherit cmake`` class handles ``do_configure`` (runs ``cmake``),
    PARALLEL_MAKE = "-j 8"
    EOF
 
-   # First build: ~60-90 minutes. Subsequent builds with warm sstate: ~5 min.
-   bitbake uptane-ota-image
-
-**arm64 build (separate build directory):**
+5.5 Run the first build
+-------------------------
 
 .. code-block:: bash
 
+   bitbake uptane-ota-image
+
+The first build downloads all source tarballs and compiles everything
+from scratch. Expect 60–90 minutes on a modern machine. Subsequent
+builds with a warm sstate cache take under 5 minutes.
+
+When it finishes:
+
+.. code-block:: bash
+
+   ls tmp/deploy/images/qemux86-64-ota/
+   # uptane-ota-image-qemux86-64-ota.wic.gz   ← bootable disk image
+   # uptane-ota-image-qemux86-64-ota.ext4     ← rootfs only
+   # bzImage--*.bin                           ← kernel
+
+5.6 Repeat for arm64
+----------------------
+
+.. code-block:: bash
+
+   cd ~/uptane-workspace/poky
    source oe-init-build-env ../build-arm64
 
-   # Add layers (same four as above)
+   # Add layers (same four)
+   bitbake-layers add-layer ~/uptane-workspace/meta-openembedded/meta-oe
+   bitbake-layers add-layer ~/uptane-workspace/meta-openembedded/meta-python
+   bitbake-layers add-layer ~/uptane-workspace/meta-swupdate
+   bitbake-layers add-layer ~/uptane-workspace/meta-uptane-ota
+
    cat >> conf/local.conf << 'EOF'
    MACHINE = "qemuarm64-ota"
    DISTRO_FEATURES:append = " systemd"
@@ -81,26 +119,10 @@ The ``inherit cmake`` class handles ``do_configure`` (runs ``cmake``),
 
    bitbake uptane-ota-image
 
-5.3 Verifying build artifacts
--------------------------------
-
-.. code-block:: bash
-
-   ls tmp/deploy/images/qemux86-64-ota/
-   # uptane-ota-image-qemux86-64-ota.wic.gz   ← bootable disk image
-   # uptane-ota-image-qemux86-64-ota.ext4     ← rootfs only
-   # bzImage--*.bin                           ← kernel
-   # uptane-client                            ← our binary (also in rootfs)
-
 .. admonition:: Checkpoint
    :class: checkpoint
 
-   * ``bitbake uptane-ota-image`` completes without errors for both machines
-   * ``.wic.gz`` files exist in ``tmp/deploy/images/`` for both targets
-   * ``bitbake-layers show-layers`` lists all four layers with correct priorities
-
-.. tip::
-
-   Set ``SSTATE_DIR`` and ``DL_DIR`` in ``conf/local.conf`` to directories
-   shared across build directories. The sstate cache alone cuts rebuild
-   times from 90 minutes to under 5 minutes after the first warm build.
+   * ``bitbake-layers show-layers`` lists all six layers
+   * ``bitbake uptane-ota-image`` completes without errors for x86-64
+   * ``ls tmp/deploy/images/qemux86-64-ota/*.wic.gz`` returns a file
+   * Repeat for arm64 when ready
