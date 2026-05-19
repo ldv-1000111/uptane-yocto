@@ -100,3 +100,4 @@ sealed_key.*
 .env
 .env.*
 *.pid
+ota-client/build/

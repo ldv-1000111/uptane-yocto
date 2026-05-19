@@ -53,6 +53,7 @@ executable that links against it, and optionally build the test binary.
 
    cat > ota-client/CMakeLists.txt << 'EOF'
    cmake_minimum_required(VERSION 3.20)
+   cmake_policy(SET CMP0135 NEW)   # suppress FetchContent timestamp warning
    project(uptane-client VERSION 1.0.0 LANGUAGES CXX)
 
    set(CMAKE_CXX_STANDARD 17)
@@ -138,22 +139,78 @@ executable means the final binary has no runtime library dependencies
 beyond the system ones (libcurl, libssl). This simplifies deployment
 onto the target rootfs — no ``LD_LIBRARY_PATH`` management needed.
 
-3.3 Build it locally to verify CMake is correct
--------------------------------------------------
+3.3 tests/CMakeLists.txt — test binary definition
+---------------------------------------------------
 
-Before writing any C++ source, confirm the CMake scaffolding works:
+The root ``CMakeLists.txt`` calls ``add_subdirectory(tests)`` when
+``ENABLE_TESTS=ON``. That subdirectory must have its own
+``CMakeLists.txt`` or CMake errors out immediately — even before any
+test source files exist. Create it now so the build works at every step:
+
+.. code-block:: bash
+
+   cat > ota-client/tests/CMakeLists.txt << 'EOF'
+   add_executable(uptane_tests
+       test_metadata.cpp
+       test_staging.cpp
+       test_ab_manager.cpp
+       test_downloader.cpp
+       test_verifier.cpp
+       test_uds_flasher.cpp
+   )
+
+   target_link_libraries(uptane_tests
+       PRIVATE uptane_lib GTest::gtest GTest::gtest_main)
+
+   include(GoogleTest)
+   gtest_discover_tests(uptane_tests)
+   EOF
+
+.. note::
+
+   The ``.cpp`` test files listed here do not exist yet — they are
+   written in Step 12. CMake only errors on missing ``CMakeLists.txt``
+   files at configure time; missing ``.cpp`` sources only error at
+   build time when you run ``make``. This means ``cmake ..`` succeeds
+   now, and ``make`` will succeed once the test sources are written
+   in Step 12.
+
+3.4 Fix the FetchContent timestamp warning
+-------------------------------------------
+
+The CMake warning about ``DOWNLOAD_EXTRACT_TIMESTAMP`` and ``CMP0135``
+is harmless but noisy. Silence it by adding one line to
+``CMakeLists.txt`` right after the ``cmake_minimum_required`` call:
+
+.. code-block:: bash
+
+   # Open the file and add the policy setting after line 1
+   sed -i '1a cmake_policy(SET CMP0135 NEW)' ota-client/CMakeLists.txt
+
+   # Verify it looks right
+   head -4 ota-client/CMakeLists.txt
+   # cmake_minimum_required(VERSION 3.20)
+   # cmake_policy(SET CMP0135 NEW)
+   # project(uptane-client VERSION 1.0.0 LANGUAGES CXX)
+   # ...
+
+3.5 Verify CMake configures cleanly
+-------------------------------------
 
 .. code-block:: bash
 
    cd ota-client
-   mkdir build && cd build
+   mkdir -p build && cd build
    cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=ON -DENABLE_UDS=ON
    # Should end with: -- Build files have been written to: .../build
+   # No errors, no warnings about CMP0135
    cd ../..
 
 .. admonition:: Checkpoint
    :class: checkpoint
 
    * ``find ota-client -type d | wc -l`` returns **11**
-   * ``cmake ..`` in ``ota-client/build/`` exits without errors
-   * ``cat ota-client/CMakeLists.txt | grep project`` shows ``uptane-client``
+   * ``find ota-client -name "CMakeLists.txt" | wc -l`` returns **2**
+     (root + tests/)
+   * ``cmake ..`` exits without errors
+   * No ``CMP0135`` warning in the cmake output
