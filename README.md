@@ -3,7 +3,7 @@
 This repository contains the **ReadTheDocs source** for the complete
 Uptane OTA Implementation Guide (Steps 1–24, single consolidated tutorial).
 
-Hosted at: https://uptane-ota-guide.readthedocs.io
+Hosted at: https://uptane-ota-implementation-guide.readthedocs.io
 
 ## Quick Start — Local HTML Build
 
