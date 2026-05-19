@@ -39,7 +39,6 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Overview
-   :numbered:
 
    overview/introduction
    overview/prerequisites
@@ -49,14 +48,12 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Phase 1 — Environment Setup
-   :numbered:
 
    phase1_environment/step01_host_setup
 
 .. toctree::
    :maxdepth: 2
    :caption: Phase 2 — Yocto Layer
-   :numbered:
 
    phase2_yocto/step02_layer_conf
    phase2_yocto/step03_machine_wic
@@ -66,7 +63,6 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Phase 3 — C++ OTA Client
-   :numbered:
 
    phase3_cpp/step06_cmake_structure
    phase3_cpp/step07_metadata_module
@@ -79,7 +75,6 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Phase 4 — Testing
-   :numbered:
 
    phase4_testing/step13_unit_tests
    phase4_testing/step14_mock_backend
@@ -88,7 +83,6 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Phase 5 — Production Hardening
-   :numbered:
 
    phase5_hardening/step16_secure_boot
    phase5_hardening/step17_tls_mtls
@@ -97,7 +91,6 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Phase 6 — CI/CD Pipeline
-   :numbered:
 
    phase6_cicd/step19_github_actions
    phase6_cicd/step20_campaign_management
@@ -105,7 +98,6 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Phase 7 — Security Audit
-   :numbered:
 
    phase7_security/step21_threat_model
    phase7_security/step22_penetration_testing
@@ -113,7 +105,6 @@ over-the-air software update system for automotive ECUs using:
 .. toctree::
    :maxdepth: 2
    :caption: Phase 8 — Deployment
-   :numbered:
 
    phase8_deployment/step23_production_checklist
    phase8_deployment/step24_day2_operations
