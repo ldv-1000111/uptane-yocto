@@ -4,16 +4,24 @@ Step 12 — Write the GoogleTest Suites
 12.1 tests/CMakeLists.txt
 ---------------------------
 
-This file was already created in Step 3.3 so that ``cmake ..`` would
-succeed from the very beginning. No action needed here — confirm it
-exists:
-
 .. code-block:: bash
 
-   cat ota-client/tests/CMakeLists.txt
-   # add_executable(uptane_tests ...)
-   # target_link_libraries(uptane_tests ...)
-   # gtest_discover_tests(uptane_tests)
+   cat > ota-client/tests/CMakeLists.txt << 'EOF'
+   add_executable(uptane_tests
+       test_metadata.cpp
+       test_staging.cpp
+       test_ab_manager.cpp
+       test_downloader.cpp
+       test_verifier.cpp
+       test_uds_flasher.cpp
+   )
+
+   target_link_libraries(uptane_tests
+       PRIVATE uptane_lib GTest::gtest GTest::gtest_main)
+
+   include(GoogleTest)
+   gtest_discover_tests(uptane_tests)
+   EOF
 
 12.2 tests/test_metadata.cpp
 ------------------------------
